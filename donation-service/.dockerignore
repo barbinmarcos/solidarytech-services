@@ -1,0 +1,8 @@
+.git
+.github
+.env
+.env.*
+donation-service
+*.log
+.vscode
+.idea
