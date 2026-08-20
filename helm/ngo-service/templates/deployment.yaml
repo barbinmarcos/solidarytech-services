@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ngo-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: ngo-service
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: ngo-service
+
+  template:
+    metadata:
+      labels:
+        app: ngo-service
+
+    spec:
+      containers:
+        - name: ngo-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: "{{ .Values.containerPort }}"
+
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: solidarytech-database
+                  key: database-url
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path | quote }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path | quote }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

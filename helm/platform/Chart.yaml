@@ -1,0 +1,5 @@
+apiVersion: v2
+name: solidarytech-platform
+description: Base Kubernetes resources for SolidaryTech
+type: application
+version: 0.1.0

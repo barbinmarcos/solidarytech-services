@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: volunteer-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: volunteer-service
+
+spec:
+  replicas: {{ .Values.replicaCount }}
+
+  selector:
+    matchLabels:
+      app: volunteer-service
+
+  template:
+    metadata:
+      labels:
+        app: volunteer-service
+
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+
+      containers:
+        - name: volunteer-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+
+          env:
+            - name: PORT
+              value: "{{ .Values.containerPort }}"
+
+            - name: AWS_REGION
+              value: {{ .Values.env.AWS_REGION | quote }}
+
+            - name: AWS_DYNAMODB_TABLE
+              value: {{ .Values.env.AWS_DYNAMODB_TABLE | quote }}
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.path | quote }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.livenessProbe.path | quote }}
+              port: {{ .Values.containerPort }}
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

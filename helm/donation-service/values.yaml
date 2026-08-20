@@ -1,0 +1,38 @@
+replicaCount: 2
+
+image:
+  repository: 212792011616.dkr.ecr.us-east-1.amazonaws.com/solidarytech-donation-service
+  tag: v3
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: donation-service
+
+service:
+  type: ClusterIP
+  port: 8082
+
+containerPort: 8082
+
+env:
+  AWS_REGION: us-east-1
+  AWS_SQS_URL: https://sqs.us-east-1.amazonaws.com/212792011616/solidarytech-donation-events
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+livenessProbe:
+  path: /health
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+readinessProbe:
+  path: /health
+  initialDelaySeconds: 5
+  periodSeconds: 5

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: donation-service
+  namespace: solidarytech
+spec:
+  type: {{ .Values.service.type }}
+
+  selector:
+    app: donation-service
+
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPort }}
