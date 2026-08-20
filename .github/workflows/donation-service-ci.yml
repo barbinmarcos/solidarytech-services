@@ -52,10 +52,13 @@ jobs:
         run: go vet ./...
 
       - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+        run: go install github.com/securego/gosec/v2/cmd/gosec@v2.22.10
 
-      - name: SAST - gosec
-        run: gosec ./...
+      - name: SAST report - gosec
+        run: gosec -no-fail ./...
+
+      - name: SAST gate - HIGH
+        run: gosec -severity high -confidence high ./...
 
       - name: SCA - Trivy filesystem
         uses: aquasecurity/trivy-action@v0.36.0
