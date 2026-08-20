@@ -79,10 +79,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Debug GitHub OIDC claims
-        uses: github/actions-oidc-debugger@main
-        with:
-          audience: sts.amazonaws.com
+      - name: Show GitHub OIDC context
+        run: |
+          echo "Repository: $GITHUB_REPOSITORY"
+          echo "Repository owner: $GITHUB_REPOSITORY_OWNER"
+          echo "Ref: $GITHUB_REF"
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Expected standard sub: repo:${GITHUB_REPOSITORY}:ref:${GITHUB_REF}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
