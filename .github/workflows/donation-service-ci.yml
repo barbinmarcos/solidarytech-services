@@ -71,7 +71,7 @@ jobs:
 
   build:
     name: Build Scan Push
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: ci
     runs-on: ubuntu-latest
 
