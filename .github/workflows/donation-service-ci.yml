@@ -1,0 +1,126 @@
+name: Donation Service CI/CD
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "donation-service/**"
+
+  push:
+    branches:
+      - main
+    paths:
+      - "donation-service/**"
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: solidarytech-donation-service
+
+jobs:
+  ci:
+    name: Test and Security
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: donation-service
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+          cache-dependency-path: donation-service/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: SAST - gosec
+        run: gosec ./...
+
+      - name: SCA - Trivy filesystem
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: donation-service
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+
+  build:
+    name: Build Scan Push
+    if: github.event_name == 'push'
+    needs: ci
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::212792011616:role/solidarytech-prod-github-actions-role
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            ./donation-service
+
+      - name: Container vulnerability scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+
+      - name: Push image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push \
+            $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Update GitOps image tag
+        run: |
+          sed -i \
+            "s/tag: .*/tag: ${{ github.sha }}/" \
+            helm/donation-service/values.yaml
+
+      - name: Commit GitOps update
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git add helm/donation-service/values.yaml
+          git commit -m "chore: deploy donation-service ${{ github.sha }}"
+          git push
