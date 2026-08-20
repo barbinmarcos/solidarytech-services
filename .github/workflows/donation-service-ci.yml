@@ -8,12 +8,14 @@ on:
       - main
     paths:
       - "donation-service/**"
+      - ".github/workflows/donation-service-ci.yml"
 
   push:
     branches:
       - main
     paths:
       - "donation-service/**"
+      - ".github/workflows/donation-service-ci.yml"
 
 permissions:
   contents: write
@@ -39,7 +41,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: "1.24"
           cache-dependency-path: donation-service/go.sum
 
       - name: Download dependencies
@@ -79,19 +81,58 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Show GitHub OIDC context
+      - name: Inspect GitHub OIDC token claims
+        shell: bash
         run: |
-          echo "Repository: $GITHUB_REPOSITORY"
-          echo "Repository owner: $GITHUB_REPOSITORY_OWNER"
-          echo "Ref: $GITHUB_REF"
-          echo "Event: $GITHUB_EVENT_NAME"
-          echo "Expected standard sub: repo:${GITHUB_REPOSITORY}:ref:${GITHUB_REF}"
+          set -euo pipefail
+
+          TOKEN_RESPONSE=$(curl -sS \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com")
+
+          TOKEN=$(echo "${TOKEN_RESPONSE}" | \
+            python3 -c 'import sys,json; print(json.load(sys.stdin)["value"])')
+
+          export TOKEN
+
+          python3 <<'PY'
+          import os
+          import json
+          import base64
+
+          token = os.environ["TOKEN"]
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+
+          keys = [
+              "sub",
+              "aud",
+              "repository",
+              "repository_id",
+              "repository_owner",
+              "repository_owner_id",
+              "ref",
+              "ref_type",
+              "event_name",
+              "workflow",
+          ]
+
+          print("=== GitHub OIDC Claims ===")
+
+          for key in keys:
+              print(f"{key}: {claims.get(key)}")
+          PY
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::212792011616:role/solidarytech-prod-github-actions-role
           aws-region: us-east-1
+
+      - name: Verify AWS identity
+        run: aws sts get-caller-identity
 
       - name: Login to Amazon ECR
         id: ecr
@@ -103,7 +144,7 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
-            -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            -t "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}" \
             ./donation-service
 
       - name: Container vulnerability scan
@@ -121,19 +162,28 @@ jobs:
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker push \
-            $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+            "${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Update GitOps image tag
         run: |
           sed -i \
-            "s/tag: .*/tag: ${{ github.sha }}/" \
+            "s/^  tag: .*/  tag: ${{ github.sha }}/" \
             helm/donation-service/values.yaml
+
+          echo "Nova configuração:"
+          grep -A3 '^image:' helm/donation-service/values.yaml
 
       - name: Commit GitOps update
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
           git add helm/donation-service/values.yaml
+
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração GitOps necessária."
+            exit 0
+          fi
+
           git commit -m "chore: deploy donation-service ${{ github.sha }}"
-          git push
+          git push origin HEAD:main
