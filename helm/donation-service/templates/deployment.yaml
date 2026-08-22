@@ -3,15 +3,21 @@ kind: Deployment
 metadata:
   name: donation-service
   namespace: solidarytech
+
 spec:
+  {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
+  {{- end }}
+
   selector:
     matchLabels:
       app: donation-service
+
   template:
     metadata:
       labels:
         app: donation-service
+
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
 
