@@ -37,4 +37,4 @@ readinessProbe:
   initialDelaySeconds: 5
   periodSeconds: 5
 
-simulateLatencyMs: "800"
+simulateLatencyMs: "0"
