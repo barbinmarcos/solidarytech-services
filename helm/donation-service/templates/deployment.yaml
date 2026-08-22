@@ -30,6 +30,9 @@ spec:
             - name: AWS_SQS_URL
               value: {{ .Values.env.AWS_SQS_URL | quote }}
 
+            - name: SIMULATE_LATENCY_MS
+              value: {{ .Values.simulateLatencyMs | quote }}
+
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

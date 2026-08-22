@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -100,6 +101,7 @@ func main() {
 				Region: aws.String(region),
 			},
 		)
+
 		if err != nil {
 			log.Printf("Erro ao criar sessão AWS: %v", err)
 		} else {
@@ -118,8 +120,6 @@ func main() {
 
 	mux.HandleFunc("/health", app.HealthHandler)
 	mux.HandleFunc("/donations", app.DonationHandler)
-
-	// Endpoint utilizado pelo Prometheus.
 	mux.Handle("/metrics", promhttp.Handler())
 
 	handler := metricsMiddleware(mux)
@@ -142,7 +142,6 @@ func main() {
 
 func metricsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Evita contar o scrape do Prometheus como tráfego da aplicação.
 		if r.URL.Path == "/metrics" {
 			next.ServeHTTP(w, r)
 			return
@@ -184,8 +183,27 @@ func (a *App) HealthHandler(w http.ResponseWriter, r *http.Request) {
 func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	switch r.Method {
+	// Simulação controlada de latência para testes de observabilidade.
+	//
+	// SIMULATE_LATENCY_MS=800
+	// adiciona aproximadamente 800 ms ao endpoint /donations.
+	//
+	// SIMULATE_LATENCY_MS=0
+	// mantém o comportamento normal.
+	if delay := os.Getenv("SIMULATE_LATENCY_MS"); delay != "" {
+		ms, err := strconv.Atoi(delay)
 
+		if err != nil {
+			log.Printf(
+				"Valor inválido para SIMULATE_LATENCY_MS: %s",
+				delay,
+			)
+		} else if ms > 0 {
+			time.Sleep(time.Duration(ms) * time.Millisecond)
+		}
+	}
+
+	switch r.Method {
 	case http.MethodPost:
 		a.createDonation(w, r)
 

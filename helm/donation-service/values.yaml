@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: 212792011616.dkr.ecr.us-east-1.amazonaws.com/solidarytech-donation-service
-  tag: v4
+  tag: v5
   pullPolicy: IfNotPresent
 
 serviceAccount:
@@ -36,3 +36,5 @@ readinessProbe:
   path: /health
   initialDelaySeconds: 5
   periodSeconds: 5
+
+simulateLatencyMs: "0"
