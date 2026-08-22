@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: donation-service
   namespace: solidarytech
+  labels:
+    app: donation-service
+
 spec:
   type: {{ .Values.service.type }}
 
@@ -10,5 +13,7 @@ spec:
     app: donation-service
 
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.containerPort }}
+    - name: http
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
