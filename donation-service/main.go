@@ -692,7 +692,6 @@ func initTracer() func(context.Context) error {
 		otlptracehttp.WithEndpoint(
 			endpoint,
 		),
-		otlptracehttp.WithInsecure(),
 	)
 
 	if err != nil {
