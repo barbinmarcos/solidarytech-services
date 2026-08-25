@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"log"
@@ -16,6 +17,13 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 )
 
 type Donation struct {
@@ -65,30 +73,73 @@ var (
 func main() {
 	_ = godotenv.Load()
 
+	//
+	// OpenTelemetry
+	//
+
+	shutdownTracer := initTracer()
+
+	defer func() {
+		if err := shutdownTracer(context.Background()); err != nil {
+			log.Printf(
+				"Erro ao finalizar OpenTelemetry: %v",
+				err,
+			)
+		}
+	}()
+
+	//
+	// Prometheus
+	//
+
 	prometheus.MustRegister(httpRequestsTotal)
 	prometheus.MustRegister(httpRequestDuration)
 
+	//
+	// Porta HTTP
+	//
+
 	port := os.Getenv("PORT")
+
 	if port == "" {
 		port = "8082"
 	}
 
+	//
+	// PostgreSQL
+	//
+
 	dbURL := os.Getenv("DATABASE_URL")
+
 	if dbURL == "" {
 		log.Fatal("DATABASE_URL é obrigatória")
 	}
 
 	db, err := sql.Open("pgx", dbURL)
+
 	if err != nil {
-		log.Fatalf("Erro ao abrir conexão com o banco: %v", err)
+		log.Fatalf(
+			"Erro ao abrir conexão com o banco: %v",
+			err,
+		)
 	}
+
 	defer db.Close()
 
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Erro ao conectar ao banco: %v", err)
+		log.Fatalf(
+			"Erro ao conectar ao banco: %v",
+			err,
+		)
 	}
 
-	log.Println("Conectado ao PostgreSQL (donation-service).")
+	log.Println(
+		"Conectado ao PostgreSQL (donation-service).",
+	)
+
+	//
+	// AWS SQS
+	//
 
 	var sqsSvc *sqs.SQS
 
@@ -96,6 +147,7 @@ func main() {
 	region := os.Getenv("AWS_REGION")
 
 	if queueURL != "" && region != "" {
+
 		sess, err := session.NewSession(
 			&aws.Config{
 				Region: aws.String(region),
@@ -103,12 +155,25 @@ func main() {
 		)
 
 		if err != nil {
-			log.Printf("Erro ao criar sessão AWS: %v", err)
+
+			log.Printf(
+				"Erro ao criar sessão AWS: %v",
+				err,
+			)
+
 		} else {
+
 			sqsSvc = sqs.New(sess)
-			log.Println("Integração com AWS SQS ativada.")
+
+			log.Println(
+				"Integração com AWS SQS ativada.",
+			)
 		}
 	}
+
+	//
+	// Aplicação
+	//
 
 	app := &App{
 		DB:          db,
@@ -116,13 +181,47 @@ func main() {
 		SqsQueueURL: queueURL,
 	}
 
+	//
+	// HTTP Router
+	//
+
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/health", app.HealthHandler)
-	mux.HandleFunc("/donations", app.DonationHandler)
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc(
+		"/health",
+		app.HealthHandler,
+	)
 
-	handler := metricsMiddleware(mux)
+	mux.HandleFunc(
+		"/donations",
+		app.DonationHandler,
+	)
+
+	mux.Handle(
+		"/metrics",
+		promhttp.Handler(),
+	)
+
+	//
+	// OpenTelemetry HTTP instrumentation
+	//
+
+	otelHandler := otelhttp.NewHandler(
+		mux,
+		"donation-service-http",
+	)
+
+	//
+	// Prometheus middleware
+	//
+
+	handler := metricsMiddleware(
+		otelHandler,
+	)
+
+	//
+	// HTTP Server
+	//
 
 	server := &http.Server{
 		Addr:              ":" + port,
@@ -133,84 +232,175 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	log.Printf("donation-service rodando na porta %s", port)
+	log.Printf(
+		"donation-service rodando na porta %s",
+		port,
+	)
 
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("Erro ao iniciar servidor HTTP: %v", err)
+	if err := server.ListenAndServe(); err != nil &&
+		err != http.ErrServerClosed {
+
+		log.Fatalf(
+			"Erro ao iniciar servidor HTTP: %v",
+			err,
+		)
 	}
 }
+
+//
+// Prometheus Middleware
+//
 
 func metricsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/metrics" {
-			next.ServeHTTP(w, r)
-			return
-		}
 
-		start := time.Now()
+	return http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
 
-		recorder := &statusRecorder{
-			ResponseWriter: w,
-			status:         http.StatusOK,
-		}
+			//
+			// Não contabiliza scraping do Prometheus
+			//
 
-		next.ServeHTTP(recorder, r)
+			if r.URL.Path == "/metrics" {
 
-		httpRequestsTotal.WithLabelValues(
-			r.Method,
-			r.URL.Path,
-			http.StatusText(recorder.status),
-		).Inc()
+				next.ServeHTTP(
+					w,
+					r,
+				)
 
-		httpRequestDuration.WithLabelValues(
-			r.Method,
-			r.URL.Path,
-		).Observe(time.Since(start).Seconds())
-	})
+				return
+			}
+
+			start := time.Now()
+
+			recorder := &statusRecorder{
+				ResponseWriter: w,
+				status:         http.StatusOK,
+			}
+
+			next.ServeHTTP(
+				recorder,
+				r,
+			)
+
+			httpRequestsTotal.
+				WithLabelValues(
+					r.Method,
+					r.URL.Path,
+					http.StatusText(
+						recorder.status,
+					),
+				).
+				Inc()
+
+			httpRequestDuration.
+				WithLabelValues(
+					r.Method,
+					r.URL.Path,
+				).
+				Observe(
+					time.Since(start).Seconds(),
+				)
+		},
+	)
 }
 
-func (a *App) HealthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+//
+// Health Check
+//
+
+func (a *App) HealthHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	w.WriteHeader(
+		http.StatusOK,
+	)
 
 	if _, err := w.Write(
-		[]byte(`{"status":"ok","service":"donation-service"}`),
+		[]byte(
+			`{"status":"ok","service":"donation-service"}`,
+		),
 	); err != nil {
-		log.Printf("Erro ao escrever resposta do health check: %v", err)
+
+		log.Printf(
+			"Erro ao escrever resposta do health check: %v",
+			err,
+		)
 	}
 }
 
-func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+//
+// Donations Handler
+//
 
-	// Simulação controlada de latência para testes de observabilidade.
+func (a *App) DonationHandler(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	w.Header().Set(
+		"Content-Type",
+		"application/json",
+	)
+
+	//
+	// Simulação controlada de latência.
+	//
+	// Exemplo:
 	//
 	// SIMULATE_LATENCY_MS=800
-	// adiciona aproximadamente 800 ms ao endpoint /donations.
 	//
-	// SIMULATE_LATENCY_MS=0
-	// mantém o comportamento normal.
-	if delay := os.Getenv("SIMULATE_LATENCY_MS"); delay != "" {
-		ms, err := strconv.Atoi(delay)
+	// adiciona aproximadamente 800ms
+	// ao endpoint /donations.
+	//
+
+	if delay := os.Getenv(
+		"SIMULATE_LATENCY_MS",
+	); delay != "" {
+
+		ms, err := strconv.Atoi(
+			delay,
+		)
 
 		if err != nil {
+
 			log.Printf(
 				"Valor inválido para SIMULATE_LATENCY_MS: %s",
 				delay,
 			)
+
 		} else if ms > 0 {
-			time.Sleep(time.Duration(ms) * time.Millisecond)
+
+			time.Sleep(
+				time.Duration(ms) *
+					time.Millisecond,
+			)
 		}
 	}
 
 	switch r.Method {
+
 	case http.MethodPost:
-		a.createDonation(w, r)
+
+		a.createDonation(
+			w,
+			r,
+		)
 
 	case http.MethodGet:
-		a.listDonations(w)
+
+		a.listDonations(
+			w,
+		)
 
 	default:
+
 		http.Error(
 			w,
 			`{"error":"Método não permitido"}`,
@@ -219,15 +409,29 @@ func (a *App) DonationHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (a *App) createDonation(w http.ResponseWriter, r *http.Request) {
+//
+// Create Donation
+//
+
+func (a *App) createDonation(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
 	var d Donation
 
-	if err := json.NewDecoder(r.Body).Decode(&d); err != nil {
+	if err := json.NewDecoder(
+		r.Body,
+	).Decode(
+		&d,
+	); err != nil {
+
 		http.Error(
 			w,
 			`{"error":"Payload inválido"}`,
 			http.StatusBadRequest,
 		)
+
 		return
 	}
 
@@ -251,28 +455,57 @@ func (a *App) createDonation(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
-		log.Printf("Erro ao salvar doação: %v", err)
+
+		log.Printf(
+			"Erro ao salvar doação: %v",
+			err,
+		)
 
 		http.Error(
 			w,
 			`{"error":"Erro interno"}`,
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
+	//
+	// Envio assíncrono para SQS
+	//
+
 	if a.SqsSvc != nil {
-		go a.sendNotificationEvent(d)
+
+		go a.sendNotificationEvent(
+			d,
+		)
 	}
 
-	w.WriteHeader(http.StatusCreated)
+	w.WriteHeader(
+		http.StatusCreated,
+	)
 
-	if err := json.NewEncoder(w).Encode(d); err != nil {
-		log.Printf("Erro ao serializar resposta da doação: %v", err)
+	if err := json.NewEncoder(
+		w,
+	).Encode(
+		d,
+	); err != nil {
+
+		log.Printf(
+			"Erro ao serializar resposta da doação: %v",
+			err,
+		)
 	}
 }
 
-func (a *App) listDonations(w http.ResponseWriter) {
+//
+// List Donations
+//
+
+func (a *App) listDonations(
+	w http.ResponseWriter,
+) {
+
 	rows, err := a.DB.Query(
 		`
 		SELECT
@@ -288,13 +521,18 @@ func (a *App) listDonations(w http.ResponseWriter) {
 	)
 
 	if err != nil {
-		log.Printf("Erro ao consultar doações: %v", err)
+
+		log.Printf(
+			"Erro ao consultar doações: %v",
+			err,
+		)
 
 		http.Error(
 			w,
 			`{"error":"Erro interno"}`,
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
@@ -303,6 +541,7 @@ func (a *App) listDonations(w http.ResponseWriter) {
 	donations := []Donation{}
 
 	for rows.Next() {
+
 		var d Donation
 
 		err := rows.Scan(
@@ -315,61 +554,190 @@ func (a *App) listDonations(w http.ResponseWriter) {
 		)
 
 		if err != nil {
-			log.Printf("Erro ao ler doação do banco: %v", err)
+
+			log.Printf(
+				"Erro ao ler doação do banco: %v",
+				err,
+			)
 
 			http.Error(
 				w,
 				`{"error":"Erro interno"}`,
 				http.StatusInternalServerError,
 			)
+
 			return
 		}
 
-		donations = append(donations, d)
+		donations = append(
+			donations,
+			d,
+		)
 	}
 
 	if err := rows.Err(); err != nil {
-		log.Printf("Erro ao iterar resultado das doações: %v", err)
+
+		log.Printf(
+			"Erro ao iterar resultado das doações: %v",
+			err,
+		)
 
 		http.Error(
 			w,
 			`{"error":"Erro interno"}`,
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(donations); err != nil {
-		log.Printf("Erro ao serializar lista de doações: %v", err)
+	if err := json.NewEncoder(
+		w,
+	).Encode(
+		donations,
+	); err != nil {
+
+		log.Printf(
+			"Erro ao serializar lista de doações: %v",
+			err,
+		)
 	}
 }
 
-func (a *App) sendNotificationEvent(d Donation) {
-	if a.SqsSvc == nil || a.SqsQueueURL == "" {
-		log.Printf("SQS não configurado; evento não enviado")
+//
+// SQS Notification
+//
+
+func (a *App) sendNotificationEvent(
+	d Donation,
+) {
+
+	if a.SqsSvc == nil ||
+		a.SqsQueueURL == "" {
+
+		log.Printf(
+			"SQS não configurado; evento não enviado",
+		)
+
 		return
 	}
 
-	body, err := json.Marshal(d)
+	body, err := json.Marshal(
+		d,
+	)
+
 	if err != nil {
-		log.Printf("Erro ao serializar evento para SQS: %v", err)
+
+		log.Printf(
+			"Erro ao serializar evento para SQS: %v",
+			err,
+		)
+
 		return
 	}
 
 	result, err := a.SqsSvc.SendMessage(
 		&sqs.SendMessageInput{
-			QueueUrl:    aws.String(a.SqsQueueURL),
-			MessageBody: aws.String(string(body)),
+			QueueUrl: aws.String(
+				a.SqsQueueURL,
+			),
+			MessageBody: aws.String(
+				string(body),
+			),
 		},
 	)
 
 	if err != nil {
-		log.Printf("Erro ao enviar evento para SQS: %v", err)
+
+		log.Printf(
+			"Erro ao enviar evento para SQS: %v",
+			err,
+		)
+
 		return
 	}
 
 	log.Printf(
 		"Evento enviado ao SQS com sucesso. MessageId=%s",
-		aws.StringValue(result.MessageId),
+		aws.StringValue(
+			result.MessageId,
+		),
 	)
+}
+
+//
+// OpenTelemetry
+//
+
+func initTracer() func(context.Context) error {
+
+	ctx := context.Background()
+
+	endpoint := os.Getenv(
+		"OTEL_EXPORTER_OTLP_ENDPOINT",
+	)
+
+	if endpoint == "" {
+
+		endpoint = "localhost:4318"
+
+		log.Printf(
+			"OTEL_EXPORTER_OTLP_ENDPOINT não configurado; usando %s",
+			endpoint,
+		)
+	}
+
+	exporter, err := otlptracehttp.New(
+		ctx,
+		otlptracehttp.WithEndpoint(
+			endpoint,
+		),
+		otlptracehttp.WithInsecure(),
+	)
+
+	if err != nil {
+
+		log.Fatalf(
+			"Erro ao criar exporter OTLP: %v",
+			err,
+		)
+	}
+
+	res, err := resource.New(
+		ctx,
+		resource.WithAttributes(
+			semconv.ServiceName(
+				"donation-service",
+			),
+		),
+	)
+
+	if err != nil {
+
+		log.Fatalf(
+			"Erro ao criar resource OpenTelemetry: %v",
+			err,
+		)
+	}
+
+	tracerProvider :=
+		sdktrace.NewTracerProvider(
+			sdktrace.WithBatcher(
+				exporter,
+			),
+			sdktrace.WithResource(
+				res,
+			),
+		)
+
+	otel.SetTracerProvider(
+		tracerProvider,
+	)
+
+	log.Printf(
+		"OpenTelemetry inicializado. OTLP endpoint=%s",
+		endpoint,
+	)
+
+	return tracerProvider.Shutdown
 }

@@ -39,6 +39,15 @@ spec:
             - name: SIMULATE_LATENCY_MS
               value: {{ .Values.simulateLatencyMs | quote }}
 
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-otel
+                  key: headers
+
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

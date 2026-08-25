@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: 212792011616.dkr.ecr.us-east-1.amazonaws.com/solidarytech-donation-service
-  tag: v5
+  tag: v6
   pullPolicy: IfNotPresent
 
 serviceAccount:
@@ -42,5 +42,8 @@ autoscaling:
   minReplicas: 2
   maxReplicas: 4
   targetCPUUtilizationPercentage: 60
+
+otel:
+  endpoint: "otlp.nr-data.net:4318"
 
 simulateLatencyMs: "0"
