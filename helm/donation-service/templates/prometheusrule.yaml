@@ -29,6 +29,7 @@ spec:
             severity: critical
             service: donation-service
             environment: production
+            namespace: monitoring
 
           annotations:
             summary: "Alta latência no donation-service"
