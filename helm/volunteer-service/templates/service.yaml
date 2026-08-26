@@ -3,6 +3,8 @@ kind: Service
 metadata:
   name: volunteer-service
   namespace: {{ .Release.Namespace }}
+  labels:
+    app: volunteer-service
 
 spec:
   type: {{ .Values.service.type }}
@@ -11,6 +13,7 @@ spec:
     app: volunteer-service
 
   ports:
-    - port: {{ .Values.service.port }}
+    - name: http
+      port: {{ .Values.service.port }}
       targetPort: {{ .Values.containerPort }}
       protocol: TCP

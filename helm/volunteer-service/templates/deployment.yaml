@@ -41,6 +41,21 @@ spec:
             - name: AWS_DYNAMODB_TABLE
               value: {{ .Values.env.AWS_DYNAMODB_TABLE | quote }}
 
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-otel
+                  key: headers
+
+            - name: AWS_REGION
+              value: {{ .Values.env.AWS_REGION | quote }}
+
+            - name: AWS_DYNAMODB_TABLE
+              value: {{ .Values.env.AWS_DYNAMODB_TABLE | quote }}
+
           readinessProbe:
             httpGet:
               path: {{ .Values.readinessProbe.path | quote }}
