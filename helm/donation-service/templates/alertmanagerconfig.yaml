@@ -1,0 +1,41 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: donation-service-slack
+  namespace: monitoring
+  labels:
+    alertmanagerConfig: donation-service
+spec:
+  route:
+    receiver: donation-service-slack
+    groupBy:
+      - alertname
+      - service
+    groupWait: 10s
+    groupInterval: 1m
+    repeatInterval: 4h
+    matchers:
+      - name: service
+        value: donation-service
+        matchType: "="
+
+  receivers:
+    - name: donation-service-slack
+      slackConfigs:
+        - apiURL:
+            name: alertmanager-slack
+            key: slack-webhook-url
+          channel: "#solidarytech-alerts"
+          sendResolved: true
+          title: >-
+            [{{ "{{" }} .Status | toUpper {{ "}}" }}]
+            {{ "{{" }} .CommonLabels.alertname {{ "}}" }}
+          text: >-
+            Serviço: {{ "{{" }} .CommonLabels.service {{ "}}" }}
+            Severidade: {{ "{{" }} .CommonLabels.severity {{ "}}" }}
+            Ambiente: {{ "{{" }} .CommonLabels.environment {{ "}}" }}
+            {{ "{{" }} range .Alerts {{ "}}" }}
+            {{ "{{" }} .Annotations.description {{ "}}" }}
+            {{ "{{" }} end {{ "}}" }}
+{{- end }}
