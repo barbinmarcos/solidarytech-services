@@ -1,0 +1,36 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: donation-service-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+    app: donation-service
+spec:
+  groups:
+    - name: donation-service.rules
+      rules:
+        - alert: DonationServiceHighLatency
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(
+                  donation_http_request_duration_seconds_bucket{
+                    path="/donations"
+                  }[2m]
+                )
+              )
+            ) > 2
+          for: 1m
+
+          labels:
+            severity: critical
+            service: donation-service
+            environment: production
+
+          annotations:
+            summary: "Alta latência no donation-service"
+            description: "O p95 do endpoint /donations está acima de 2 segundos por mais de 1 minuto."
+{{- end }}

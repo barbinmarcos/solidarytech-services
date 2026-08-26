@@ -46,4 +46,7 @@ autoscaling:
 otel:
   endpoint: "otlp.nr-data.net:4318"
 
+monitoring:
+  enabled: true
+
 simulateLatencyMs: "0"
