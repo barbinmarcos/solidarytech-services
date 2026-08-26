@@ -33,6 +33,21 @@ spec:
             - name: PORT
               value: "{{ .Values.containerPort }}"
 
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+
+            - name: OTEL_EXPORTER_OTLP_HEADERS
+              valueFrom:
+                secretKeyRef:
+                  name: newrelic-otel
+                  key: headers
+
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: solidarytech-database
+                  key: database-url
+
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

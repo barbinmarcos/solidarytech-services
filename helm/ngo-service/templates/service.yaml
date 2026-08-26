@@ -1,9 +1,10 @@
-
 apiVersion: v1
 kind: Service
 metadata:
   name: ngo-service
   namespace: {{ .Release.Namespace }}
+  labels:
+    app: ngo-service
 
 spec:
   type: {{ .Values.service.type }}
@@ -12,7 +13,7 @@ spec:
     app: ngo-service
 
   ports:
-    - port: {{ .Values.service.port }}
+    - name: http
+      port: {{ .Values.service.port }}
       targetPort: {{ .Values.containerPort }}
       protocol: TCP
-
