@@ -13,3 +13,11 @@ output "volunteer_service_role_arn" {
 output "donation_service_role_arn" {
   value = aws_iam_role.donation_service.arn
 }
+output "github_actions_role_arn" {
+  value = aws_iam_role.github_actions.arn
+}
+
+output "velero_role_arn" {
+  description = "ARN da IAM Role usada pelo Velero via EKS Pod Identity"
+  value       = aws_iam_role.velero.arn
+}

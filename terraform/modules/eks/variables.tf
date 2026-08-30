@@ -50,3 +50,7 @@ variable "volunteer_service_role_arn" {
 variable "donation_service_role_arn" {
   type = string
 }
+
+variable "velero_role_arn" {
+  type = string
+}

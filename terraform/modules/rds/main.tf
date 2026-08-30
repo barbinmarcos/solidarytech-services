@@ -55,11 +55,15 @@ resource "aws_db_instance" "postgres" {
 
   publicly_accessible = false
 
+  # Disaster Recovery / PITR
   backup_retention_period = 1
-  skip_final_snapshot     = true
+  skip_final_snapshot     = false
 
-  deletion_protection = false
+  # Proteção contra exclusão acidental
+  deletion_protection = true
 
+  # Mantido Single-AZ por FinOps.
+  # Multi-AZ é recomendado para produção real
   multi_az = false
 
   tags = {

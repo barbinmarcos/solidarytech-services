@@ -178,3 +178,169 @@ resource "aws_iam_role_policy_attachment" "donation_sqs" {
   role       = aws_iam_role.donation_service.name
   policy_arn = aws_iam_policy.donation_sqs.arn
 }
+
+resource "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
+
+  client_id_list = [
+    "sts.amazonaws.com"
+  ]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-github-oidc"
+  }
+}
+
+data "aws_iam_policy_document" "github_actions_assume_role" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "sts:AssumeRoleWithWebIdentity"
+    ]
+
+    principals {
+      type = "Federated"
+
+      identifiers = [
+        aws_iam_openid_connect_provider.github.arn
+      ]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+
+      values = [
+        "repo:barbinmarcos/solidarytech-services:*"
+      ]
+    }
+  }
+}
+
+resource "aws_iam_role" "github_actions" {
+  name = "${var.project_name}-${var.environment}-github-actions-role"
+
+  assume_role_policy = data.aws_iam_policy_document.github_actions_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-github-actions-role"
+  }
+}
+
+data "aws_iam_policy_document" "github_actions_ecr" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "ecr:GetAuthorizationToken"
+    ]
+
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:GetDownloadUrlForLayer",
+      "ecr:BatchGetImage",
+      "ecr:PutImage",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload"
+    ]
+
+    resources = [
+      "arn:aws:ecr:us-east-1:*:repository/solidarytech-*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "github_actions_ecr" {
+  name   = "${var.project_name}-${var.environment}-github-actions-ecr"
+  policy = data.aws_iam_policy_document.github_actions_ecr.json
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_ecr" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = aws_iam_policy.github_actions_ecr.arn
+}
+
+#
+# Velero -> S3 Backup
+#
+
+resource "aws_iam_role" "velero" {
+  name = "${var.project_name}-${var.environment}-velero-role"
+
+  assume_role_policy = data.aws_iam_policy_document.pod_identity_assume_role.json
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-velero-role"
+  }
+}
+
+data "aws_iam_policy_document" "velero_backup" {
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:GetObject",
+      "s3:DeleteObject",
+      "s3:PutObject",
+      "s3:AbortMultipartUpload",
+      "s3:ListMultipartUploadParts"
+    ]
+
+    resources = [
+      "${var.velero_bucket_arn}/*"
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "s3:ListBucket",
+      "s3:GetBucketLocation"
+    ]
+
+    resources = [
+      var.velero_bucket_arn
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+
+    actions = [
+      "ec2:DescribeVolumes",
+      "ec2:DescribeSnapshots",
+      "ec2:CreateTags",
+      "ec2:CreateVolume",
+      "ec2:CreateSnapshot",
+      "ec2:DeleteSnapshot"
+    ]
+
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_policy" "velero_backup" {
+  name = "${var.project_name}-${var.environment}-velero-backup"
+
+  policy = data.aws_iam_policy_document.velero_backup.json
+}
+
+resource "aws_iam_role_policy_attachment" "velero_backup" {
+  role       = aws_iam_role.velero.name
+  policy_arn = aws_iam_policy.velero_backup.arn
+}

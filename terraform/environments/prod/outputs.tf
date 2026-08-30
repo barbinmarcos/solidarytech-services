@@ -81,3 +81,7 @@ output "eks_cluster_endpoint" {
 output "eks_node_group_name" {
   value = module.eks.node_group_name
 }
+
+output "github_actions_role_arn" {
+  value = module.iam.github_actions_role_arn
+}

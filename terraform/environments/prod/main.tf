@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 module "vpc" {
   source = "../../modules/vpc"
 
@@ -11,6 +13,7 @@ module "vpc" {
     "us-east-1b"
   ]
 }
+
 module "ecr" {
   source = "../../modules/ecr"
 
@@ -23,6 +26,7 @@ module "ecr" {
     "volunteer-service"
   ]
 }
+
 module "dynamodb" {
   source = "../../modules/dynamodb"
 
@@ -31,6 +35,7 @@ module "dynamodb" {
 
   table_name = "solidarytech-volunteers"
 }
+
 module "sqs" {
   source = "../../modules/sqs"
 
@@ -39,6 +44,7 @@ module "sqs" {
 
   queue_name = "solidarytech-donation-events"
 }
+
 module "rds" {
   source = "../../modules/rds"
 
@@ -53,6 +59,14 @@ module "rds" {
   db_password = var.db_password
 }
 
+module "velero_backup" {
+  source = "../../modules/velero-backup"
+
+  project_name   = var.project_name
+  environment    = var.environment
+  aws_account_id = data.aws_caller_identity.current.account_id
+}
+
 module "iam" {
   source = "../../modules/iam"
 
@@ -61,6 +75,7 @@ module "iam" {
 
   dynamodb_table_arn = module.dynamodb.table_arn
   sqs_queue_arn      = module.sqs.queue_arn
+  velero_bucket_arn  = module.velero_backup.bucket_arn
 }
 
 module "eks" {
@@ -69,8 +84,8 @@ module "eks" {
   project_name = var.project_name
   environment  = var.environment
 
-  # Nodes inicialmente nas subnets públicas
-  # porque ainda não configuramos NAT Gateway/VPC Endpoints
+  # Nodes nas subnets públicas.
+  # Não configuramos NAT Gateway/VPC Endpoints.
   subnet_ids = module.vpc.public_subnet_ids
 
   # IAM Roles
@@ -80,16 +95,17 @@ module "eks" {
   # Acesso administrativo ao cluster
   admin_principal_arn = "arn:aws:iam::212792011616:user/barbin"
 
-  # Pod Identity
+  # EKS Pod Identity
   volunteer_service_role_arn = module.iam.volunteer_service_role_arn
   donation_service_role_arn  = module.iam.donation_service_role_arn
+  velero_role_arn            = module.iam.velero_role_arn
 
   # Managed Node Group
   instance_types = [
     "t3.small"
   ]
 
-  desired_size = 1
-  min_size     = 1
-  max_size     = 2
+  desired_size = 4
+  min_size     = 2
+  max_size     = 4
 }

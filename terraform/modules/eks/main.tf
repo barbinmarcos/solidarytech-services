@@ -154,3 +154,16 @@ resource "aws_eks_pod_identity_association" "donation" {
     aws_eks_addon.pod_identity_agent
   ]
 }
+
+resource "aws_eks_pod_identity_association" "velero" {
+  cluster_name = aws_eks_cluster.main.name
+
+  namespace       = "velero"
+  service_account = "velero"
+
+  role_arn = var.velero_role_arn
+
+  depends_on = [
+    aws_eks_addon.pod_identity_agent
+  ]
+}
