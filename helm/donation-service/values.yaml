@@ -2,7 +2,7 @@ replicaCount: 2
 
 image:
   repository: 212792011616.dkr.ecr.us-east-1.amazonaws.com/solidarytech-donation-service
-  tag: v7
+  tag: c4044fb86bb46606b49774f10d9b4083fcaf0c0d
   pullPolicy: IfNotPresent
 
 serviceAccount:
