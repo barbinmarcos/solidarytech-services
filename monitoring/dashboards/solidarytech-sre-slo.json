@@ -85,7 +85,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(rate(donation_http_requests_total{path!=\"/health\",path!=\"/metrics\",status!~\"5..\"}[5m])) / clamp_min(sum(rate(donation_http_requests_total{path!=\"/health\",path!=\"/metrics\"}[5m])), 0.000001)",
+          "expr": "(\n  sum(\n    rate(\n      donation_http_requests_total{\n        method=\"POST\",\n        path=\"/donations\",\n        status=\"Created\"\n      }[5m]\n    )\n  )\n  /\n  sum(\n    rate(\n      donation_http_requests_total{\n        method=\"POST\",\n        path=\"/donations\"\n      }[5m]\n    )\n  )\n)\nand on()\n(\n  sum(\n    rate(\n      donation_http_requests_total{\n        method=\"POST\",\n        path=\"/donations\"\n      }[5m]\n    )\n  ) > 0\n)",
           "legendFormat": "",
           "range": true,
           "refId": "A"
@@ -150,7 +150,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(\n    0.95,\n    sum by (le) (\n      rate(\n        donation_http_request_duration_seconds_bucket{\n          method=\"POST\",\n          path=\"/donations\"\n        }[2m]\n      )\n    )\n  ) <= bool 2",
+          "expr": "(\n  histogram_quantile(\n    0.95,\n    sum by (le) (\n      rate(\n        donation_http_request_duration_seconds_bucket{\n          method=\"POST\",\n          path=\"/donations\"\n        }[2m]\n      )\n    )\n  ) <= bool 2\n)\nand on()\n(\n  sum(\n    rate(\n      donation_http_requests_total{\n        method=\"POST\",\n        path=\"/donations\"\n      }[2m]\n    )\n  ) > 0\n)",
           "legendFormat": "",
           "range": true,
           "refId": "A"
