@@ -32,4 +32,24 @@ coverage/
 
 # Secrets
 *.pem
-*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Terraform local artifacts
+*.tfplan
+tfplan
+
+# Velero local binaries/downloads
+velero-*-linux-amd64/
+velero-*-linux-amd64.tar.gz
+
+# Monitoring local backups
+monitoring-values-backup-*.yaml
+
+# Temporary files
+*.swp
+*.swo
