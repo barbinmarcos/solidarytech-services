@@ -6,7 +6,7 @@ Esta documentação apresenta a arquitetura da plataforma SolidaryTech implantad
 
 A arquitetura geral apresenta o fluxo completo da solução, desde o GitHub Actions até o deploy no Amazon EKS, além das integrações com Amazon RDS, Amazon DynamoDB, Amazon SQS, Prometheus, Grafana, Alertmanager, OpenTelemetry, New Relic e Velero.
 
-![Arquitetura Geral SolidaryTech](./solidarytech-architecture-overview.png)
+![Arquitetura Geral SolidaryTech](./solidtechs-arq-aws.png)
 
 ## Arquitetura dos Microsserviços
 
@@ -39,7 +39,7 @@ A visão detalhada apresenta os três microsserviços da plataforma:
   - OpenTelemetry
   - New Relic
 
-![Arquitetura dos Microsserviços](./solidarytech-microservices-architecture.png)
+![Arquitetura dos Microsserviços](./solitechs-arq-aws2.png)
 
 ## CI/CD e GitOps
 
