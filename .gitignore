@@ -53,3 +53,4 @@ monitoring-values-backup-*.yaml
 # Temporary files
 *.swp
 *.swo
+*.bak
