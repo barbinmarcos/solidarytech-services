@@ -49,4 +49,4 @@ otel:
 monitoring:
   enabled: true
 
-simulateLatencyMs: 2500
+simulateLatencyMs: 0
