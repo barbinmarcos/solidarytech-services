@@ -330,3 +330,57 @@ SolidaryTech:
 
 O resultado demonstra uma abordagem integrada entre SRE, ITSM,
 AIOps, observabilidade e GitOps.
+
+---
+
+## Resultado da validação SRE
+
+A reprodução controlada do incidente validou o ciclo completo de detecção, resposta e recuperação.
+
+### Timeline
+
+- **16:15:46:** início do incidente controlado.
+- **16:18:20:** `DonationServiceHighLatency` entrou em FIRING.
+- **16:32:51:** o alerta deixou o estado FIRING e a recuperação foi confirmada.
+
+### MTTR observado
+
+O MTTR foi calculado entre a detecção efetiva pelo monitoramento e a confirmação da recuperação:
+
+```text
+MTTR = resolved-time - firing-time
+MTTR = 16:32:51 - 16:18:20
+MTTR = 871 segundos
+MTTR = 14 minutos e 31 segundos
+
+```
+
+### Comportamento dos SLIs
+
+Durante o incidente:
+
+- p95 de latência: aproximadamente **4,88 s**;
+- Availability SLI: **100%**;
+- SLO de latência <= 2 s: **violado**;
+- alerta de alta latência: **FIRING**.
+
+Após a mitigação:
+
+- p95 de latência: aproximadamente **4,75 ms**;
+- Availability SLI: **100%**;
+- SLO de latência <= 2 s: **atendido**;
+- alerta: **resolvido**.
+
+A simulação demonstrou que disponibilidade e latência são SLIs independentes. O endpoint continuou disponível durante o incidente, mas a degradação de desempenho foi suficiente para violar o objetivo de nível de serviço.
+
+### Validações realizadas
+
+O exercício confirmou:
+
+- detecção pelo Prometheus;
+- visualização do impacto no Grafana;
+- acionamento do `DonationServiceHighLatency`;
+- mitigação via GitOps;
+- recuperação do serviço;
+- retorno ao SLO;
+- mensuração objetiva do MTTR.

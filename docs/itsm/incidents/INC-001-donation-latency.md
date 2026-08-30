@@ -311,3 +311,48 @@ diagnosticar, mitigar e validar a recuperação do serviço.
 
 O processo ITSM formaliza esse ciclo e permite utilizar o MTTR e o
 postmortem como mecanismos de melhoria contínua.
+
+---
+
+## Evidências da simulação controlada
+
+A simulação controlada do incidente foi executada em 30/08/2026.
+
+### Linha do tempo observada
+
+| Evento | Horário |
+|---|---|
+| Início da simulação | 16:15:46 -03 |
+| `DonationServiceHighLatency` em FIRING | 16:18:20 -03 |
+| Alerta RESOLVED | 16:32:51 -03 |
+
+O tempo entre o início da simulação e a entrada efetiva do alerta em FIRING foi de:
+
+**2 minutos e 34 segundos**
+
+O MTTR observado, considerando o intervalo entre a detecção efetiva pelo monitoramento e a confirmação da recuperação, foi de:
+
+**14 minutos e 31 segundos (871 segundos)**
+
+### Evidências SLI/SLO
+
+Durante o incidente:
+
+- Donation p95: aproximadamente **4,88 s**
+- SLO de latência: **<= 2 s**
+- Availability SLI: **100%**
+- Latency SLO: **0%**
+- `DonationServiceHighLatency`: **FIRING**
+
+O serviço permaneceu disponível, mas com degradação de desempenho suficiente para violar o SLO de latência.
+
+Após a recuperação:
+
+- Donation p95: aproximadamente **4,75 ms**
+- Availability SLI: **100%**
+- Latency SLO: **100%**
+- Alert FIRING: **0**
+- `simulateLatencyMs`: **0**
+- Donation Service: **2/2 réplicas disponíveis**
+
+A recuperação restabeleceu o SLO de latência sem perda de disponibilidade.
