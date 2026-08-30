@@ -9,9 +9,11 @@ from flask import Flask, request, jsonify, Response
 from dotenv import load_dotenv
 
 from prometheus_client import (
+    CollectorRegistry,
     Counter,
     Histogram,
     generate_latest,
+    multiprocess,
     CONTENT_TYPE_LATEST,
 )
 
@@ -88,8 +90,11 @@ def record_request_metrics(response):
 
 @app.route("/metrics")
 def metrics():
+    registry = CollectorRegistry()
+    multiprocess.MultiProcessCollector(registry)
+
     return Response(
-        generate_latest(),
+        generate_latest(registry),
         mimetype=CONTENT_TYPE_LATEST,
     )
 

@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: 212792011616.dkr.ecr.us-east-1.amazonaws.com/solidarytech-volunteer-service
-  tag: v3
+  tag: prometheus-multiprocess-20260830
   pullPolicy: IfNotPresent
 
 serviceAccount:
