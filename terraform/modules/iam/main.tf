@@ -218,7 +218,7 @@ data "aws_iam_policy_document" "github_actions_assume_role" {
       variable = "token.actions.githubusercontent.com:sub"
 
       values = [
-        "repo:barbinmarcos/solidarytech-services:*"
+        "repo:barbinmarcos@82238913/solidarytech-services@1339665682:ref:refs/heads/main"
       ]
     }
   }
